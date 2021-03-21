@@ -1,0 +1,127 @@
+zabbix_export:
+  version: '5.2'
+  date: '2021-03-13T13:36:22Z'
+  media_types:
+    -
+      name: Freepbx
+      type: WEBHOOK
+      parameters:
+        -
+          name: Message
+          value: '{ALERT.MESSAGE}'
+        -
+          name: Subject
+          value: '{ALERT.SUBJECT}'
+        -
+          name: To
+          value: '{ALERT.SENDTO}'
+        -
+          name: Token
+          value: 15334a0b7ff1d77eea072535e5dea3df
+        -
+          name: Url
+          value: 'https://PPBX_HOST/freepbx/apicall/index.php'
+      script: |
+        var freepbx = {
+            token: null,
+            to: null,
+            message: null,
+            url: null,
+        
+            sendMessage: function() {
+                var params = {
+                    tocall: freepbx.to,
+                    message: freepbx.message,
+                    language: 'it'
+                },
+                data,
+                response,
+                request = new CurlHttpRequest(),
+                url = freepbx.url;
+                request.AddHeader('Content-Type', 'application/json;charset=utf-8');
+                request.AddHeader('token: '+freepbx.token );       
+                data = JSON.stringify(params);
+                Zabbix.Log(4, data);
+                response = request.Post(url, data);
+                try {
+                    response = JSON.parse(response);
+                    Zabbix.Log(4, response);
+                }
+                catch (error) {
+                    response = null;
+                }
+            }
+        }
+        try {
+            var params = JSON.parse(value);
+            freepbx.token = params.Token;
+            freepbx.to = params.To;
+            freepbx.message = params.Subject + '. ' + params.Message;
+            freepbx.url = params.Url;
+            freepbx.sendMessage();
+            return 'OK';
+        } catch (error) {
+            throw 'Sending failed: ' + error + '.';
+        }
+      timeout: 10s
+      description: |
+        https://github.com/Stell0/apicall-freepbx
+        
+        1. Register api-calls on freepbx module 
+        2. Copy and paste the obtained token into the "Token" field above
+        3. Place Url freepbx 
+        
+        Install googletts and apicall modules on FreePBX >= 14. Google tts require a valid google API key. Used only if message parameter is setted 
+      message_templates:
+        -
+          event_source: TRIGGERS
+          operation_mode: PROBLEM
+          subject: 'Problema :  {HOST.NAME}  {TRIGGER.STATUS}'
+          message: |
+            Problema iniziato alle {EVENT.TIME} del {EVENT.DATE}
+            Nome Problema: {EVENT.NAME}
+            Stato   : {STATUS}
+            Severity: {EVENT.SEVERITY}
+            
+        -
+          event_source: TRIGGERS
+          operation_mode: RECOVERY
+          subject: 'Resolto in {EVENT.DURATION}: {EVENT.NAME}'
+          message: |
+            Problema è stato risolto  in {EVENT.DURATION} alle {EVENT.RECOVERY.TIME} del {EVENT.RECOVERY.DATE}
+            
+            Host: {HOST.NAME}
+            
+        -
+          event_source: TRIGGERS
+          operation_mode: UPDATE
+          subject: 'Aggiornamento problema: {EVENT.NAME}'
+          message: |
+            {USER.FULLNAME} {EVENT.UPDATE.ACTION} problema alle {EVENT.UPDATE.DATE} {EVENT.UPDATE.TIME}.
+            {EVENT.UPDATE.MESSAGE}
+            
+            Stato corrente del problema è: {EVENT.STATUS}, Riconosciuto: {EVENT.ACK.STATUS}.
+        -
+          event_source: DISCOVERY
+          operation_mode: PROBLEM
+          subject: 'Discovery: {DISCOVERY.DEVICE.STATUS} {DISCOVERY.DEVICE.IPADDRESS}'
+          message: |
+            Discovery rule: {DISCOVERY.RULE.NAME}
+            
+            Device IP: {DISCOVERY.DEVICE.IPADDRESS}
+            Device DNS: {DISCOVERY.DEVICE.DNS}
+            Device status: {DISCOVERY.DEVICE.STATUS}
+            Device uptime: {DISCOVERY.DEVICE.UPTIME}
+            
+            Device service name: {DISCOVERY.SERVICE.NAME}
+            Device service port: {DISCOVERY.SERVICE.PORT}
+            Device service status: {DISCOVERY.SERVICE.STATUS}
+            Device service uptime: {DISCOVERY.SERVICE.UPTIME}
+        -
+          event_source: AUTOREGISTRATION
+          operation_mode: PROBLEM
+          subject: 'Autoregistration: {HOST.HOST}'
+          message: |
+            Host name: {HOST.HOST}
+            Host IP: {HOST.IP}
+            Agent port: {HOST.PORT}
